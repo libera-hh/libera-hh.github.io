@@ -183,6 +183,7 @@
   const LS_KEY="webtoon_work_store_v1";
   // 같은 공유기 내 PC 서버 감지 (192.168.x.x / 10.x / 172.16-31.x / localhost)
   const IS_LAN=/^(localhost|127\.|192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(location.hostname);
+  const GIST_CFG_KEY='easy_cal_gist_cfg'; // 반드시 gistLoad() 호출 전에 선언
   const STEP_FALLBACK=["밑색","채색","보정","기타"];
   const STEP_COLORS={"밑색":"#AECBFF","채색":"#FFDCA6","보정":"#CEE8BE","기타":"#E0D2F8","수정":"#E3DDD4"};
   const DOW=["일","월","화","수","목","금","토"];
@@ -252,7 +253,6 @@
   }
 
   // ---- GitHub Gist 동기화 ----
-  const GIST_CFG_KEY='easy_cal_gist_cfg';
   function gistCfg(){try{return JSON.parse(localStorage.getItem(GIST_CFG_KEY)||'null');}catch{return null;}}
   function saveGistCfg(cfg){localStorage.setItem(GIST_CFG_KEY,JSON.stringify(cfg));}
   function gistHdr(token){return{'Authorization':'token '+token,'Content-Type':'application/json','Accept':'application/vnd.github.v3+json','X-GitHub-Api-Version':'2022-11-28'};}
@@ -287,13 +287,13 @@
     if(!lr.ok)throw new Error('토큰 인증 실패 ('+lr.status+')');
     const list=await lr.json();
     const found=list.find(g=>g.description==='EASY_Cal 작업 기록'&&g.files&&g.files['data.json']);
-    if(found)return found.id;
+    if(found)return {id:found.id,isNew:false};
     const cr=await fetch('https://api.github.com/gists',{
       method:'POST',headers:gistHdr(token),
       body:JSON.stringify({description:'EASY_Cal 작업 기록',public:false,files:{'data.json':{content:JSON.stringify(store)}}})
     });
     if(!cr.ok)throw new Error('Gist 생성 실패 ('+cr.status+')');
-    return (await cr.json()).id;
+    return {id:(await cr.json()).id,isNew:true};
   }
 
   // ---- settings sync (데스크톱 색상/폰트 → CSS 변수 적용) ----
@@ -693,9 +693,9 @@
       const btn=document.getElementById('gConnect');
       btn.textContent='연결 중...';btn.disabled=true;
       try{
-        const gistId=await gistConnect(token);
+        const {id:gistId,isNew}=await gistConnect(token);
         saveGistCfg({token,gistId});
-        await gistSave(); // 현재 데이터 즉시 업로드
+        if(isNew){await gistSave();}else{await gistLoad();}
         alert('✓ 연결 완료!\n이제 저장할 때마다 자동으로 GitHub Gist에 동기화됩니다.');
         renderSettings();
       }catch(e){
