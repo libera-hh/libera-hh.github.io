@@ -22,15 +22,43 @@
   .iconbtn{border:1px solid var(--line);background:var(--cardHi);color:var(--text);
     border-radius:10px;padding:7px 9px;font-size:11px;font-weight:700;cursor:pointer;}
   .iconbtn:active{transform:translateY(1px);}
-  #settingsPanel{position:sticky;top:46px;z-index:18;background:var(--cardHi);
-    border-bottom:1px solid var(--line);padding:10px 14px;display:none;
-    gap:10px;align-items:center;flex-wrap:wrap;}
-  #settingsPanel label{font-size:11px;font-weight:700;color:var(--muted);display:flex;align-items:center;gap:5px;}
-  #settingsPanel input[type=color]{width:32px;height:28px;border:1px solid var(--line);
-    border-radius:7px;padding:2px;cursor:pointer;background:none;}
-  #settingsPanel .sbtn{font-size:11px;font-weight:800;padding:6px 12px;border-radius:9px;
-    border:1px solid var(--line);cursor:pointer;background:var(--blue);color:#fff;border-color:var(--blue);}
-  #settingsPanel .sbtn.reset{background:var(--card);color:var(--text);border-color:var(--line);}
+  /* settings page */
+  .set-sec{margin-bottom:14px;}
+  .color-row{display:flex;gap:22px;flex-wrap:wrap;padding:6px 0 4px;}
+  .color-item{display:flex;flex-direction:column;align-items:center;gap:7px;}
+  .color-item span{font-size:11px;font-weight:700;color:var(--muted);}
+  input[type=color].swatch{-webkit-appearance:none;appearance:none;width:52px;height:52px;
+    border-radius:50%;border:2px solid var(--line);padding:0;cursor:pointer;background:none;
+    outline:3px solid transparent;outline-offset:3px;transition:outline-color .15s;}
+  input[type=color].swatch:hover{outline-color:var(--blue);}
+  .set-row{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+  .set-row label{font-size:12px;font-weight:700;color:var(--muted);min-width:44px;flex:none;}
+  .set-row input[type=text],.set-row input[type=number]{flex:1;padding:9px 12px;
+    border:1px solid var(--line);border-radius:11px;font-size:14px;
+    background:var(--cardHi);color:var(--text);font-family:inherit;font-weight:700;}
+  .step-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+  input[type=color].step-clr{-webkit-appearance:none;appearance:none;
+    width:36px;height:36px;border-radius:9px;border:1.5px solid var(--line);
+    padding:0;cursor:pointer;flex:none;}
+  .step-nm{flex:1;padding:8px 12px;border:1px solid var(--line);border-radius:11px;
+    font-size:13px;font-weight:700;background:var(--cardHi);color:var(--text);font-family:inherit;}
+  .step-del{background:none;border:1px solid var(--line);border-radius:9px;
+    color:var(--muted);font-size:17px;line-height:1;width:34px;height:34px;
+    cursor:pointer;flex:none;display:flex;align-items:center;justify-content:center;}
+  .step-del:hover{color:var(--red);border-color:var(--red);}
+  .add-step{width:100%;padding:11px;border:1.5px dashed var(--line);border-radius:11px;
+    background:none;color:var(--muted);font-size:13px;font-weight:700;
+    cursor:pointer;margin-top:2px;font-family:inherit;}
+  .add-step:hover{border-color:var(--blue);color:var(--blue);}
+  .num-row{display:flex;gap:12px;}
+  .num-item{flex:1;display:flex;flex-direction:column;gap:5px;}
+  .num-item label{font-size:11px;font-weight:700;color:var(--muted);}
+  .num-item input{padding:10px;border:1px solid var(--line);border-radius:11px;
+    font-size:16px;font-weight:800;background:var(--cardHi);color:var(--text);text-align:center;}
+  .reset-btn{width:100%;padding:10px;border:1px solid var(--line);border-radius:11px;
+    background:var(--card);color:var(--muted);font-size:12px;font-weight:800;
+    cursor:pointer;font-family:inherit;margin-top:10px;}
+  .reset-btn:hover{color:var(--text);}
   .tabs{display:flex;gap:5px;padding:8px 10px;position:sticky;top:46px;z-index:19;background:var(--paper);}
   .tab{flex:1;text-align:center;padding:9px 0;border-radius:13px;font-weight:800;font-size:13px;
     background:var(--card);color:var(--muted);border:1px solid var(--line);cursor:pointer;}
@@ -135,23 +163,16 @@
 <body>
   <div class="top">
     <div class="top-spacer"></div>
-    <button class="iconbtn" id="btnTheme">🎨</button>
     <button class="iconbtn" id="btnImport">가져오기</button>
     <button class="iconbtn" id="btnExport">내보내기</button>
     <input type="file" id="fileInput" accept=".json,application/json" />
-  </div>
-  <div id="settingsPanel" style="display:none;flex-direction:row;">
-    <label>배경 <input type="color" id="cBg" value="#FAF7F1"></label>
-    <label>포인트 <input type="color" id="cBtn" value="#637DB9"></label>
-    <label>텍스트 <input type="color" id="cTxt" value="#372B2D"></label>
-    <button class="sbtn" id="btnApplyTheme">적용</button>
-    <button class="sbtn reset" id="btnResetTheme">기본값</button>
   </div>
   <div class="tabs">
     <div class="tab active" data-view="calendar">캘린더</div>
     <div class="tab" data-view="schedule">스케줄러</div>
     <div class="tab" data-view="record">기록</div>
     <div class="tab" data-view="review">리뷰</div>
+    <div class="tab" data-view="settings">⚙</div>
   </div>
   <div class="wrap" id="app"></div>
 
@@ -193,15 +214,21 @@
     if(typeof o.HabitTrackerWeeks!=="object"||!o.HabitTrackerWeeks)o.HabitTrackerWeeks={};
     if(typeof o.Settings!=="object"||!o.Settings)o.Settings={};
     if(!Array.isArray(o.Settings.StepNames)||!o.Settings.StepNames.length)o.Settings.StepNames=STEP_FALLBACK.slice();
+    if(typeof o.Settings.StepColors!=="object"||!o.Settings.StepColors)o.Settings.StepColors={};
     return o;
   }
   function save(){try{localStorage.setItem(LS_KEY,JSON.stringify(store));}catch(e){alert("저장 실패: "+e.message);}}
 
   // ---- settings sync (데스크톱 색상/폰트 → CSS 변수 적용) ----
   function argbToHex(v){
-    if(v==null||v===0&&!("BackgroundColor" in (store.Settings||{})))return null;
+    if(v==null||v===0)return null;
     const u=(v>>>0),r=(u>>16)&255,g=(u>>8)&255,b=u&255;
     return '#'+[r,g,b].map(x=>x.toString(16).padStart(2,'0')).join('');
+  }
+  function getStepColor(nm){
+    const sc=store.Settings.StepColors;
+    if(sc&&sc[nm]!=null)return argbToHex(sc[nm])||STEP_COLORS[nm]||'#E3DDD4';
+    return STEP_COLORS[nm]||'#E3DDD4';
   }
   function shiftHex(hex,amt){
     const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
@@ -238,7 +265,7 @@
   }
 
   function steps(){return (store.Settings.StepNames||STEP_FALLBACK).filter(s=>s&&s.trim()).slice(0,8);}
-  function stepColor(s){return STEP_COLORS[s]||"#E3DDD4";}
+  function stepColor(s){return getStepColor(s);}
   function journal(date){
     if(!store.Journals[date])store.Journals[date]={SleepAt:"",WakeAt:"",Morning:"",Gratitude1:"",Gratitude2:"",Diary:"",TimeBox:[],TimeBoxState:[],AccountEntries:[]};
     const j=store.Journals[date];
@@ -259,6 +286,7 @@
     if(view==="calendar")renderCalendar();
     else if(view==="schedule")renderSchedule();
     else if(view==="record")renderRecord();
+    else if(view==="settings")renderSettings();
     else renderReview();
     window.scrollTo(0,0);
   }
@@ -475,40 +503,107 @@
     const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
     return ((0xFF000000|(r<<16)|(g<<8)|b)|0);
   }
-  function syncColorInputs(){
-    const s=store.Settings||{};
-    document.getElementById('cBg').value=argbToHex(s.BackgroundColor)||DEFAULT_THEME.bg;
-    document.getElementById('cBtn').value=argbToHex(s.ButtonColor)||DEFAULT_THEME.btn;
-    document.getElementById('cTxt').value=argbToHex(s.TextColor)||DEFAULT_THEME.txt;
+  // ================= SETTINGS =================
+  function renderSettings(){
+    const s=store.Settings;
+    const bg=argbToHex(s.BackgroundColor)||DEFAULT_THEME.bg;
+    const btn=argbToHex(s.ButtonColor)||DEFAULT_THEME.btn;
+    const txt=argbToHex(s.TextColor)||DEFAULT_THEME.txt;
+    const sNames=s.StepNames||STEP_FALLBACK.slice();
+
+    const stepsHtml=sNames.map((nm,i)=>{
+      const sc=getStepColor(nm);
+      return `<div class="step-row">
+        <input type="color" class="step-clr" data-si="${i}" value="${sc}">
+        <input type="text" class="step-nm" data-si="${i}" value="${esc(nm)}" placeholder="단계 이름">
+        <button class="step-del" data-si="${i}">×</button>
+      </div>`;
+    }).join('');
+
+    app.innerHTML=`<div class="wrap">
+      <div class="card">
+        <h3>테마 색상</h3>
+        <div class="color-row">
+          <div class="color-item">
+            <input type="color" class="swatch" id="sBg" value="${bg}">
+            <span>배경</span>
+          </div>
+          <div class="color-item">
+            <input type="color" class="swatch" id="sBtn" value="${btn}">
+            <span>포인트</span>
+          </div>
+          <div class="color-item">
+            <input type="color" class="swatch" id="sTxt" value="${txt}">
+            <span>텍스트</span>
+          </div>
+        </div>
+        <button class="reset-btn" id="sReset">↺ 기본값으로 초기화</button>
+      </div>
+
+      <div class="card">
+        <h3>프로필</h3>
+        <div class="set-row"><label>이름</label><input type="text" id="sName" value="${esc(s.ProfileName||'')}"></div>
+        <div class="set-row"><label>태그</label><input type="text" id="sTag" value="${esc(s.ProfileTag||'')}"></div>
+      </div>
+
+      <div class="card">
+        <h3>작업 단계</h3>
+        <div id="stepList">${stepsHtml}</div>
+        ${sNames.length<8?'<button class="add-step" id="sAddStep">＋ 단계 추가</button>':''}
+      </div>
+
+      <div class="card">
+        <h3>기록 기본값</h3>
+        <div class="num-row">
+          <div class="num-item"><label>화수</label><input type="number" id="sEp" value="${s.LastEpisode||1}" min="1"></div>
+          <div class="num-item"><label>페이지</label><input type="number" id="sPg" value="${s.LastPage||1}" min="1"></div>
+        </div>
+      </div>
+    </div>`;
+
+    // 색상 실시간 적용
+    function applyColorInputs(){
+      s.BackgroundColor=hexToArgb(document.getElementById('sBg').value);
+      s.ButtonColor=hexToArgb(document.getElementById('sBtn').value);
+      s.TextColor=hexToArgb(document.getElementById('sTxt').value);
+      save();applySettings(s);
+    }
+    document.getElementById('sBg').oninput=applyColorInputs;
+    document.getElementById('sBtn').oninput=applyColorInputs;
+    document.getElementById('sTxt').oninput=applyColorInputs;
+
+    document.getElementById('sReset').onclick=()=>{
+      s.BackgroundColor=hexToArgb(DEFAULT_THEME.bg);
+      s.ButtonColor=hexToArgb(DEFAULT_THEME.btn);
+      s.TextColor=hexToArgb(DEFAULT_THEME.txt);
+      save();applySettings(s);renderSettings();
+    };
+
+    document.getElementById('sName').oninput=e=>{s.ProfileName=e.target.value;save();};
+    document.getElementById('sTag').oninput=e=>{s.ProfileTag=e.target.value;save();};
+    document.getElementById('sEp').oninput=e=>{s.LastEpisode=+e.target.value||1;save();};
+    document.getElementById('sPg').oninput=e=>{s.LastPage=+e.target.value||1;save();};
+
+    // 단계 색상
+    document.querySelectorAll('.step-clr').forEach(el=>el.oninput=e=>{
+      const i=+e.target.dataset.si,nm=s.StepNames[i];
+      s.StepColors[nm]=hexToArgb(e.target.value);save();
+    });
+    // 단계 이름
+    document.querySelectorAll('.step-nm').forEach(el=>el.oninput=e=>{
+      const i=+e.target.dataset.si;
+      s.StepNames[i]=e.target.value;save();
+    });
+    // 단계 삭제
+    document.querySelectorAll('.step-del').forEach(el=>el.onclick=e=>{
+      const i=+e.target.dataset.si;
+      s.StepNames.splice(i,1);save();renderSettings();
+    });
+    const addBtn=document.getElementById('sAddStep');
+    if(addBtn)addBtn.onclick=()=>{
+      s.StepNames.push('새 단계');save();renderSettings();
+    };
   }
-  function liveApply(){
-    const bg=document.getElementById('cBg').value;
-    const btn=document.getElementById('cBtn').value;
-    const txt=document.getElementById('cTxt').value;
-    store.Settings.BackgroundColor=hexToArgb(bg);
-    store.Settings.ButtonColor=hexToArgb(btn);
-    store.Settings.TextColor=hexToArgb(txt);
-    save();applySettings(store.Settings);
-  }
-  document.getElementById('btnTheme').onclick=()=>{
-    const p=document.getElementById('settingsPanel');
-    const open=p.style.display==='none';
-    p.style.display=open?'flex':'none';
-    if(open)syncColorInputs();
-  };
-  document.getElementById('cBg').oninput=liveApply;
-  document.getElementById('cBtn').oninput=liveApply;
-  document.getElementById('cTxt').oninput=liveApply;
-  document.getElementById('btnApplyTheme').onclick=()=>{
-    liveApply();
-    document.getElementById('settingsPanel').style.display='none';
-  };
-  document.getElementById('btnResetTheme').onclick=()=>{
-    document.getElementById('cBg').value=DEFAULT_THEME.bg;
-    document.getElementById('cBtn').value=DEFAULT_THEME.btn;
-    document.getElementById('cTxt').value=DEFAULT_THEME.txt;
-    liveApply();
-  };
 
   document.getElementById("btnImport").onclick=()=>document.getElementById("fileInput").click();
   document.getElementById("fileInput").onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();
