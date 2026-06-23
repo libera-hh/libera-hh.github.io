@@ -163,6 +163,7 @@
 <body>
   <div class="top">
     <div class="top-spacer"></div>
+    <div id="syncDot" style="width:8px;height:8px;border-radius:50%;background:#ccc;flex:none;margin-right:2px;" title="서버 미연결"></div>
     <button class="iconbtn" id="btnImport">가져오기</button>
     <button class="iconbtn" id="btnExport">내보내기</button>
     <input type="file" id="fileInput" accept=".json,application/json" />
@@ -180,6 +181,8 @@
 "use strict";
 (function(){
   const LS_KEY="webtoon_work_store_v1";
+  // 같은 공유기 내 PC 서버 감지 (192.168.x.x / 10.x / 172.16-31.x / localhost)
+  const IS_LAN=/^(localhost|127\.|192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(location.hostname);
   const STEP_FALLBACK=["밑색","채색","보정","기타"];
   const STEP_COLORS={"밑색":"#AECBFF","채색":"#FFDCA6","보정":"#CEE8BE","기타":"#E0D2F8","수정":"#E3DDD4"};
   const DOW=["일","월","화","수","목","금","토"];
@@ -188,6 +191,11 @@
 
   let store=loadStore();
   applySettings(store.Settings);
+  // 동기화 dot: LAN이면 표시, 아니면 Gist 설정 여부에 따라
+  if(IS_LAN){setSyncDot(true);}
+  else if(!gistCfg()){const d=document.getElementById('syncDot');if(d)d.style.display='none';}
+  // Gist에서 최신 데이터 비동기 로드
+  gistLoad();
   let view="calendar";
   let calY,calM,selDate=todayStr();
   let revWeek=mondayOf(new Date());
@@ -199,6 +207,18 @@
   function pd(s){const p=s.split("-");return new Date(+p[0],+p[1]-1,+p[2]);}
   function mondayOf(d){const off=(d.getDay()+6)%7;const m=new Date(d);m.setDate(d.getDate()-off);m.setHours(0,0,0,0);return m;}
   function loadStore(){
+    if(IS_LAN){
+      try{
+        const xhr=new XMLHttpRequest();
+        xhr.open('GET','/api/data',false); // 동기 요청 (LAN이라 빠름)
+        xhr.send();
+        if(xhr.status===200&&xhr.responseText&&xhr.responseText!=='{}'){
+          const o=normalize(JSON.parse(xhr.responseText));
+          try{localStorage.setItem(LS_KEY,JSON.stringify(o));}catch(e){}
+          return o;
+        }
+      }catch(e){}
+    }
     try{const raw=localStorage.getItem(LS_KEY);if(raw)return normalize(JSON.parse(raw));}catch(e){}
     if(window.__SEED_DATA__){try{const o=normalize(JSON.parse(JSON.stringify(window.__SEED_DATA__)));localStorage.setItem(LS_KEY,JSON.stringify(o));return o;}catch(e){}}
     return normalize({});
@@ -217,7 +237,64 @@
     if(typeof o.Settings.StepColors!=="object"||!o.Settings.StepColors)o.Settings.StepColors={};
     return o;
   }
-  function save(){try{localStorage.setItem(LS_KEY,JSON.stringify(store));}catch(e){alert("저장 실패: "+e.message);}}
+  function save(){
+    try{localStorage.setItem(LS_KEY,JSON.stringify(store));}catch(e){alert("저장 실패: "+e.message);}
+    if(IS_LAN){
+      try{fetch('/api/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(store)})
+        .then(r=>setSyncDot(r.ok)).catch(()=>setSyncDot(false));}catch(e){}
+    } else {
+      gistSave();
+    }
+  }
+  function setSyncDot(ok){
+    const d=document.getElementById('syncDot');
+    if(d){d.title=ok?'동기화됨':'동기화 실패';d.style.background=ok?'#4caf50':'#f44336';d.style.display='';}
+  }
+
+  // ---- GitHub Gist 동기화 ----
+  const GIST_CFG_KEY='easy_cal_gist_cfg';
+  function gistCfg(){try{return JSON.parse(localStorage.getItem(GIST_CFG_KEY)||'null');}catch{return null;}}
+  function saveGistCfg(cfg){localStorage.setItem(GIST_CFG_KEY,JSON.stringify(cfg));}
+  function gistHdr(token){return{'Authorization':'token '+token,'Content-Type':'application/json','Accept':'application/vnd.github.v3+json','X-GitHub-Api-Version':'2022-11-28'};}
+
+  async function gistLoad(){
+    const cfg=gistCfg();if(!cfg||!cfg.token||!cfg.gistId)return;
+    try{
+      const r=await fetch('https://api.github.com/gists/'+cfg.gistId,{headers:gistHdr(cfg.token)});
+      if(!r.ok){setSyncDot(false);return;}
+      const d=await r.json();
+      const content=d.files&&d.files['data.json']&&d.files['data.json'].content;
+      if(!content)return;
+      store=normalize(JSON.parse(content));
+      try{localStorage.setItem(LS_KEY,JSON.stringify(store));}catch(e){}
+      applySettings(store.Settings);render();setSyncDot(true);
+    }catch(e){setSyncDot(false);}
+  }
+
+  async function gistSave(){
+    const cfg=gistCfg();if(!cfg||!cfg.token||!cfg.gistId)return;
+    try{
+      const r=await fetch('https://api.github.com/gists/'+cfg.gistId,{
+        method:'PATCH',headers:gistHdr(cfg.token),
+        body:JSON.stringify({files:{'data.json':{content:JSON.stringify(store)}}})
+      });
+      setSyncDot(r.ok);
+    }catch(e){setSyncDot(false);}
+  }
+
+  async function gistConnect(token){
+    const lr=await fetch('https://api.github.com/gists?per_page=100',{headers:gistHdr(token)});
+    if(!lr.ok)throw new Error('토큰 인증 실패 ('+lr.status+')');
+    const list=await lr.json();
+    const found=list.find(g=>g.description==='EASY_Cal 작업 기록'&&g.files&&g.files['data.json']);
+    if(found)return found.id;
+    const cr=await fetch('https://api.github.com/gists',{
+      method:'POST',headers:gistHdr(token),
+      body:JSON.stringify({description:'EASY_Cal 작업 기록',public:false,files:{'data.json':{content:JSON.stringify(store)}}})
+    });
+    if(!cr.ok)throw new Error('Gist 생성 실패 ('+cr.status+')');
+    return (await cr.json()).id;
+  }
 
   // ---- settings sync (데스크톱 색상/폰트 → CSS 변수 적용) ----
   function argbToHex(v){
@@ -559,6 +636,31 @@
           <div class="num-item"><label>페이지</label><input type="number" id="sPg" value="${s.LastPage||1}" min="1"></div>
         </div>
       </div>
+
+      <div class="card">
+        <h3>☁ GIST 동기화</h3>
+        <div id="gistStatusBox" style="font-size:12px;font-weight:700;margin-bottom:10px;padding:8px 10px;border-radius:10px;background:var(--card);color:var(--muted);">
+          ${gistCfg()&&gistCfg().gistId
+            ? '● 연결됨 — 저장할 때마다 자동으로 GitHub Gist에 업로드됩니다.'
+            : '○ 미연결 — 토큰을 입력하면 어디서나 데이터가 동기화됩니다.'}
+        </div>
+        <div class="set-row">
+          <label>토큰</label>
+          <input type="password" id="gToken" placeholder="ghp_xxxxxxxxxxxxxxxx"
+            value="${gistCfg()&&gistCfg().token?gistCfg().token:''}">
+        </div>
+        <button class="addbtn" id="gConnect" style="width:100%;margin-top:8px;">
+          ${gistCfg()&&gistCfg().gistId?'다시 연결 / 토큰 변경':'연결하기'}
+        </button>
+        ${gistCfg()&&gistCfg().gistId
+          ? '<button id="gDisconnect" style="width:100%;margin-top:6px;padding:9px;border:1px solid var(--line);border-radius:11px;background:none;color:var(--muted);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">연결 해제</button>'
+          : ''}
+        <p style="font-size:10px;color:var(--muted);margin:10px 0 0;line-height:1.7;">
+          토큰 발급: github.com → 우상단 프로필 → Settings →<br>
+          Developer settings → Personal access tokens → Tokens (classic)<br>
+          → Generate new token → <b>gist</b> 체크 → Generate token
+        </p>
+      </div>
     </div>`;
 
     // 색상 실시간 적용
@@ -583,6 +685,31 @@
     document.getElementById('sTag').oninput=e=>{s.ProfileTag=e.target.value;save();};
     document.getElementById('sEp').oninput=e=>{s.LastEpisode=+e.target.value||1;save();};
     document.getElementById('sPg').oninput=e=>{s.LastPage=+e.target.value||1;save();};
+
+    // Gist 연결
+    document.getElementById('gConnect').onclick=async()=>{
+      const token=document.getElementById('gToken').value.trim();
+      if(!token){alert('토큰을 입력해 주세요.');return;}
+      const btn=document.getElementById('gConnect');
+      btn.textContent='연결 중...';btn.disabled=true;
+      try{
+        const gistId=await gistConnect(token);
+        saveGistCfg({token,gistId});
+        await gistSave(); // 현재 데이터 즉시 업로드
+        alert('✓ 연결 완료!\n이제 저장할 때마다 자동으로 GitHub Gist에 동기화됩니다.');
+        renderSettings();
+      }catch(e){
+        alert('연결 실패: '+e.message);
+        btn.textContent='연결하기';btn.disabled=false;
+      }
+    };
+    const gDisBtn=document.getElementById('gDisconnect');
+    if(gDisBtn)gDisBtn.onclick=()=>{
+      if(!confirm('Gist 연결을 해제할까요?\n(데이터는 삭제되지 않습니다)'))return;
+      localStorage.removeItem(GIST_CFG_KEY);
+      const d=document.getElementById('syncDot');if(d)d.style.display='none';
+      renderSettings();
+    };
 
     // 단계 색상
     document.querySelectorAll('.step-clr').forEach(el=>el.oninput=e=>{
